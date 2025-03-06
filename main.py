@@ -8,6 +8,11 @@ from fastapi.responses import JSONResponse
 import google.generativeai as genai
 import re
 import json
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from database import get_db
+from model import Review
+
 
 
 COHERE_API_KEY = ("udgKNNW1JxHxZYSQ7Xtc2xEFRGqNYcKXpGIjwfga")
@@ -27,8 +32,7 @@ class ReviewRequest(BaseModel):
 genai.configure(api_key="AIzaSyCPmJIxkxEYVfwMGCKjiS8CBuQ0hsf1riY")
 
 @app.post("/analyze")
-def analyze_sentiment(request: ReviewRequest):
-   
+def analyze_sentiment(request: ReviewRequest, db: Session = Depends(get_db)):
     prompt = f"""
     Analyze the sentiment of the following movie review and provide both sentiment and surety:
     
@@ -51,8 +55,18 @@ def analyze_sentiment(request: ReviewRequest):
         
         # Split the response into sentiment and surety
         sentiment, surety = response_text.split("|")
+        sentiment = sentiment.strip()
+        surety = float(surety.strip())
         
-        # Create JSON response with both parameters
+        # Save to database
+        db_review = Review(
+            review=request.review,
+            sentiment=sentiment,
+            sentiment_score=surety  # Convert percentage to decimal
+        )
+        db.add(db_review)
+        db.commit()
+        
         # Define emoji mapping
         emoji_map = {
             "Positive": "😊",
@@ -61,15 +75,33 @@ def analyze_sentiment(request: ReviewRequest):
         }
         
         # Get the appropriate emoji
-        emoji = emoji_map.get(sentiment.strip(), "❓")
+        emoji = emoji_map.get(sentiment, "❓")
         
         result = {
-            "sentiment": f"This seems like a {sentiment.strip()} review {emoji}",
-            "surety": f"{surety.strip()}% {sentiment.strip()} {emoji}"
+            "sentiment": f"This seems like a {sentiment} review {emoji}",
+            "surety": f"{surety}% {sentiment} {emoji}"
         }
         return JSONResponse(content=result)
 
     except Exception as e:
+        db.rollback()  # Rollback on error
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+@app.get("/list_view")
+def list_reviews(db: Session = Depends(get_db)):
+    try:
+        reviews = db.query(Review).all()
+        
+        return [
+            {
+                "id": review.id,
+                "review": review.review,
+                "sentiment": review.sentiment,
+                "sentiment_score": review.sentiment_score,
+                "created_at": review.created_at
+            }
+            for review in reviews
+        ]
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
