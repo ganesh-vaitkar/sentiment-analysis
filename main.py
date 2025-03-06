@@ -73,6 +73,3 @@ def analyze_sentiment(request: ReviewRequest):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@app.get("/")
-def home():
-    return {"message": "Sentiment Analysis API is running!"}
