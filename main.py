@@ -3,8 +3,11 @@ from pydantic import BaseModel
 import cohere
 import os
 from dotenv import load_dotenv
-import os
-from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import google.generativeai as genai
+import re
+import json
 
 
 COHERE_API_KEY = ("udgKNNW1JxHxZYSQ7Xtc2xEFRGqNYcKXpGIjwfga")
@@ -17,29 +20,58 @@ co = cohere.Client(COHERE_API_KEY)
 
 app = FastAPI()
 
+
 class ReviewRequest(BaseModel):
     review: str
 
+genai.configure(api_key="AIzaSyCPmJIxkxEYVfwMGCKjiS8CBuQ0hsf1riY")
+
 @app.post("/analyze")
 def analyze_sentiment(request: ReviewRequest):
-    try:
-        response = co.classify(
-            model='large',
-            inputs=[request.review],
-            examples=[
-    {"text": "I absolutely loved this movie, it was fantastic!", "label": "Positive"},
-    {"text": "The plot was dull and boring, I didn't enjoy it at all.", "label": "Negative"},
-    {"text": "The movie was okay, but nothing special.", "label": "Neutral"},
-    {"text": "Great acting and direction, but the pacing was off.", "label": "Positive"},
-    {"text": "I hated the ending, it ruined the whole experience.", "label": "Negative"},
-    {"text": "It was just average, nothing memorable.", "label": "Neutral"}
-]
+   
+    prompt = f"""
+    Analyze the sentiment of the following movie review and provide both sentiment and surety:
+    
+    Review:  "{request.review}"
 
-        )
-        sentiment = response.classifications[0].prediction
-        return {"review": request.review, "sentiment": sentiment}
+    Respond with exactly this format: "[Sentiment]|[X]" where:
+    - Sentiment is either "Positive", "Negative", or "Neutral"
+    - X is a surety percentage between 0 and 100
+    
+    For example: "Positive|85" or "Negative|70"
+    Base the percentage on how confident you are about the sentiment classification.
+    """
+
+    try:
+        client = genai.GenerativeModel("gemini-2.0-flash")
+        response = client.generate_content(prompt)
+
+        # Extract and clean response text
+        response_text = response.text.strip()
+        
+        # Split the response into sentiment and surety
+        sentiment, surety = response_text.split("|")
+        
+        # Create JSON response with both parameters
+        # Define emoji mapping
+        emoji_map = {
+            "Positive": "😊",
+            "Negative": "😔",
+            "Neutral": "😐"
+        }
+        
+        # Get the appropriate emoji
+        emoji = emoji_map.get(sentiment.strip(), "❓")
+        
+        result = {
+            "sentiment": f"This seems like a {sentiment.strip()} review {emoji}",
+            "surety": f"{surety.strip()}% {sentiment.strip()} {emoji}"
+        }
+        return JSONResponse(content=result)
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 @app.get("/")
 def home():
