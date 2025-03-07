@@ -92,6 +92,8 @@ def analyze_sentiment(request: ReviewRequest, db: Session = Depends(get_db)):
 def list_reviews(db: Session = Depends(get_db)):
     try:
         reviews = db.query(Review).all()
+        if not reviews:
+            return JSONResponse(content={"message": "No reviews found"}, status_code=404)
         
         return [
             {
