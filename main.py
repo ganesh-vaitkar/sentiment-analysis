@@ -1,35 +1,37 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 import cohere
 import os
-from dotenv import load_dotenv
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 import google.generativeai as genai
-import re
-import json
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
+from dotenv import load_dotenv
 from database import get_db
 from model import Review
 
+# API Configuration
+# COHERE_API_KEY = "udgKNNW1JxHxZYSQ7Xtc2xEFRGqNYcKXpGIjwfga"
+GEMINI_API_KEY = "AIzaSyCPmJIxkxEYVfwMGCKjiS8CBuQ0hsf1riY"
 
+# Validation
+# if not COHERE_API_KEY:
+#     raise ValueError("Cohere API Key not found. Set COHERE_API_KEY in .env file.")
 
-COHERE_API_KEY = ("udgKNNW1JxHxZYSQ7Xtc2xEFRGqNYcKXpGIjwfga")
-
-if not COHERE_API_KEY:
-    raise ValueError("Cohere API Key not found. Set COHERE_API_KEY in .env file.")
-
-# Initialize Cohere client
-co = cohere.Client(COHERE_API_KEY)
+# Initialize clients
+# co = cohere.Client(COHERE_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
 
 app = FastAPI()
-
 
 class ReviewRequest(BaseModel):
     review: str
 
-genai.configure(api_key="AIzaSyCPmJIxkxEYVfwMGCKjiS8CBuQ0hsf1riY")
+# Emoji mapping
+EMOJI_MAP = {
+    "Positive": "😊",
+    "Negative": "😔",
+    "Neutral": "😐"
+}
 
 @app.post("/analyze")
 def analyze_sentiment(request: ReviewRequest, db: Session = Depends(get_db)):
@@ -50,10 +52,7 @@ def analyze_sentiment(request: ReviewRequest, db: Session = Depends(get_db)):
         client = genai.GenerativeModel("gemini-2.0-flash")
         response = client.generate_content(prompt)
 
-        # Extract and clean response text
         response_text = response.text.strip()
-        
-        # Split the response into sentiment and surety
         sentiment, surety = response_text.split("|")
         sentiment = sentiment.strip()
         surety = float(surety.strip())
@@ -62,20 +61,12 @@ def analyze_sentiment(request: ReviewRequest, db: Session = Depends(get_db)):
         db_review = Review(
             review=request.review,
             sentiment=sentiment,
-            sentiment_score=surety  # Convert percentage to decimal
+            sentiment_score=surety
         )
         db.add(db_review)
         db.commit()
         
-        # Define emoji mapping
-        emoji_map = {
-            "Positive": "😊",
-            "Negative": "😔",
-            "Neutral": "😐"
-        }
-        
-        # Get the appropriate emoji
-        emoji = emoji_map.get(sentiment, "❓")
+        emoji = EMOJI_MAP.get(sentiment, "❓")
         
         result = {
             "sentiment": f"This seems like a {sentiment} review {emoji}",
@@ -84,9 +75,8 @@ def analyze_sentiment(request: ReviewRequest, db: Session = Depends(get_db)):
         return JSONResponse(content=result)
 
     except Exception as e:
-        db.rollback()  # Rollback on error
+        db.rollback()
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
 
 @app.get("/list_view")
 def list_reviews(db: Session = Depends(get_db)):
