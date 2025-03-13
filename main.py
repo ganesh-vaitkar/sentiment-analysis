@@ -33,11 +33,22 @@ app.add_middleware(
         "http://localhost:5000",  # Production frontend
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5000",
+        "https://ganesh-vaitkar.github.io",
+        "https://ghanish.in"
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-    max_age=3600,  # Cache preflight requests for 1 hour
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=[
+        "Content-Type", 
+        "Authorization", 
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers"
+    ],
+    expose_headers=["*"],
+    max_age=3600
 )
 
 class ReviewRequest(BaseModel):
