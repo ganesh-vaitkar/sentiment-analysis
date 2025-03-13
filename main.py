@@ -28,10 +28,16 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=[
+        "http://localhost:3000",  # React development server
+        "http://localhost:5000",  # Production frontend
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 class ReviewRequest(BaseModel):
