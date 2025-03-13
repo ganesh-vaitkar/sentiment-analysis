@@ -8,6 +8,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from database import get_db
 from model import Review
+from fastapi.middleware.cors import CORSMiddleware  # Add this import
 
 # API Configuration
 # COHERE_API_KEY = "udgKNNW1JxHxZYSQ7Xtc2xEFRGqNYcKXpGIjwfga"
@@ -22,6 +23,16 @@ GEMINI_API_KEY = "AIzaSyCPmJIxkxEYVfwMGCKjiS8CBuQ0hsf1riY"
 genai.configure(api_key=GEMINI_API_KEY)
 
 app = FastAPI()
+
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 class ReviewRequest(BaseModel):
     review: str
